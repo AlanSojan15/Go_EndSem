@@ -95,7 +95,6 @@ func (cg *CoinGecko) FetchMultiplePrices(coinIDs ...string) (map[string]float64,
 		}
 	}
 
-	// Fan-out: fetch any missing coins concurrently.
 	if len(missing) > 0 {
 		type result struct {
 			coinID string
@@ -122,7 +121,6 @@ func (cg *CoinGecko) FetchMultiplePrices(coinIDs ...string) (map[string]float64,
 		var mu sync.Mutex
 		for r := range ch {
 			if r.err != nil {
-				// Non-fatal: record what we have and continue.
 				continue
 			}
 			mu.Lock()

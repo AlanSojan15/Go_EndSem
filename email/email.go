@@ -8,40 +8,48 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func SendOTP(email, otp string) {
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("Error loading .env file:", err)
-		return
+func loadCredentials() (from, password string, err error) {
+	if err = godotenv.Load(); err != nil {
+		return "", "", fmt.Errorf("error loading .env file: %w", err)
 	}
-
-	from := os.Getenv("EMAIL")
-	password := os.Getenv("PASSWORD")
-
+	from = os.Getenv("EMAIL")
+	password = os.Getenv("PASSWORD")
 	if from == "" || password == "" {
-		fmt.Println("Email or password not set in .env file")
-		return
+		return "", "", fmt.Errorf("EMAIL or PASSWORD not set in .env file")
+	}
+	return from, password, nil
+}
+
+func sendMail(to, subject, body string) error {
+	from, password, err := loadCredentials()
+	if err != nil {
+		return err
 	}
 
-	msg := "From: " + from + "\n" +
-		"To: " + email + "\n" +
-		"Subject: Crypto Tracker OTP Verification\n\n" +
-		"Your OTP is: " + otp
+	msg := "From: " + from + "\r\n" +
+		"To: " + to + "\r\n" +
+		"Subject: " + subject + "\r\n\r\n" +
+		body
 
 	auth := smtp.PlainAuth("", from, password, "smtp.gmail.com")
+	return smtp.SendMail("smtp.gmail.com:587", auth, from, []string{to}, []byte(msg))
+}
 
-	err = smtp.SendMail(
-		"smtp.gmail.com:587",
-		auth,
-		from,
-		[]string{email},
-		[]byte(msg),
-	)
+func SendOTP(toEmail, otp string) {
+	subject := "Crypto Tracker OTP Verification"
+	body := "Your OTP is: " + otp
 
-	if err != nil {
-		fmt.Println("Error sending email:", err)
+	if err := sendMail(toEmail, subject, body); err != nil {
+		fmt.Println("Error sending OTP email:", err)
 		return
 	}
+	fmt.Println("OTP sent to", toEmail)
+}
 
-	fmt.Println("OTP sent to", email)
+func SendAlert(toEmail, subject, body string) {
+	if err := sendMail(toEmail, subject, body); err != nil {
+		fmt.Println("Error sending alert email:", err)
+		return
+	}
+	fmt.Println("Alert email sent to", toEmail)
 }

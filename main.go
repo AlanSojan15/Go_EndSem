@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"crypto-portfolio-tracker/alert"
 	"crypto-portfolio-tracker/api"
 	"crypto-portfolio-tracker/auth"
 	customerrors "crypto-portfolio-tracker/errors"
@@ -43,9 +44,11 @@ func main() {
 			email, _ := reader.ReadString('\n')
 			email = strings.TrimSpace(email)
 
-			fmt.Print("Enter Password: ")
-			password, _ := reader.ReadString('\n')
-			password = strings.TrimSpace(password)
+			password, err := auth.ReadPassword("Enter Password")
+			if err != nil {
+				fmt.Printf("Error reading password: %v\n", err)
+				continue
+			}
 
 			if auth.Signup(email, password, reader) {
 				fmt.Println("You can now log in with your new account.")
@@ -56,9 +59,11 @@ func main() {
 			email, _ := reader.ReadString('\n')
 			email = strings.TrimSpace(email)
 
-			fmt.Print("Enter Password: ")
-			password, _ := reader.ReadString('\n')
-			password = strings.TrimSpace(password)
+			password, err := auth.ReadPassword("Enter Password")
+			if err != nil {
+				fmt.Printf("Error reading password: %v\n", err)
+				continue
+			}
 
 			if auth.Login(email, password) {
 				handlePortfolioMenu(email, cryptoAPI, reader)
@@ -85,7 +90,11 @@ func handlePortfolioMenu(userEmail string, cryptoAPI api.CryptoApi, reader *bufi
 		fmt.Println("5. Calculate Profit/Loss Value")
 		fmt.Println("6. Export Portfolio as JSON")
 		fmt.Println("7. Import Portfolio from JSON")
-		fmt.Println("8. LogOut")
+		fmt.Println("8. Set Price Alert")
+		fmt.Println("9. View Active Alerts")
+		fmt.Println("10. Check Alerts Now")
+		fmt.Println("11. Delete Alert")
+		fmt.Println("12. LogOut")
 		fmt.Print("Enter The Option: ")
 
 		choice, _ := reader.ReadString('\n')
@@ -122,6 +131,23 @@ func handlePortfolioMenu(userEmail string, cryptoAPI api.CryptoApi, reader *bufi
 			importPortfolioJSON(reader)
 
 		case 8:
+			setPriceAlert(userEmail, cryptoAPI, reader)
+
+		case 9:
+			if err := alert.DisplayAlerts(userEmail); err != nil {
+				fmt.Printf("Error displaying alerts: %v\n", err)
+			}
+
+		case 10:
+			fmt.Println("\nChecking alerts against current prices...")
+			if err := alert.CheckAndTriggerAlerts(userEmail, cryptoAPI); err != nil {
+				fmt.Printf("Error checking alerts: %v\n", err)
+			}
+
+		case 11:
+			deleteAlert(userEmail, reader)
+
+		case 12:
 			fmt.Println("Logging Out")
 			return
 		default:
@@ -434,4 +460,149 @@ func addSingleHolding(userEmail string, reader *bufio.Reader) {
 	}
 
 	fmt.Println("Holding added successfully!")
+}
+
+func setPriceAlert(userEmail string, cryptoAPI api.CryptoApi, reader *bufio.Reader) {
+	p, err := portfolio.GetPortfolio(userEmail)
+	if err != nil {
+		fmt.Printf("Error loading portfolio: %v\n", err)
+		return
+	}
+
+	if len(p.Holdings) == 0 {
+		fmt.Println("Your portfolio is empty. Add holdings before setting alerts.")
+		return
+	}
+
+	fmt.Println("\n=== Your Portfolio Coins ===")
+	for i, h := range p.Holdings {
+		fmt.Printf("  %d. %s (%s)\n", i+1, h.CoinName, h.CoinID)
+	}
+
+	fmt.Print("\nSelect coin number: ")
+	numStr, _ := reader.ReadString('\n')
+	num, err := strconv.Atoi(strings.TrimSpace(numStr))
+	if err != nil || num < 1 || num > len(p.Holdings) {
+		fmt.Println("Invalid selection.")
+		return
+	}
+
+	selectedHolding := p.Holdings[num-1]
+	coinID := selectedHolding.CoinID
+	coinName := selectedHolding.CoinName
+
+	fmt.Printf("\nValidating coin %q with CoinGecko...\n", coinID)
+	if err := alert.ValidateCoinExists(coinID, userEmail, cryptoAPI); err != nil {
+		fmt.Printf("Coin validation failed: %v\n", err)
+		fmt.Println("Alert not created. Please check your coin ID.")
+		return
+	}
+	fmt.Println("Coin validated successfully.")
+
+	fmt.Print("\nAlert type — Buy (b) or Sell (s)? ")
+	typeStr, _ := reader.ReadString('\n')
+	typeStr = strings.TrimSpace(strings.ToLower(typeStr))
+
+	var alertType models.AlertType
+	switch typeStr {
+	case "b":
+		alertType = models.AlertTypeBuy
+		fmt.Println("  → Buy alert: you will be notified when the price drops TO or BELOW your threshold.")
+	case "s":
+		alertType = models.AlertTypeSell
+		fmt.Println("  → Sell alert: you will be notified when the price rises TO or ABOVE your threshold.")
+	default:
+		fmt.Println("Invalid type. Enter 'b' for buy or 's' for sell.")
+		return
+	}
+
+	fmt.Print("Enter threshold price ($): ")
+	priceStr, _ := reader.ReadString('\n')
+	threshold, err := strconv.ParseFloat(strings.TrimSpace(priceStr), 64)
+	if err != nil || threshold <= 0 {
+		fmt.Println("Invalid price. Must be a number greater than 0.")
+		return
+	}
+
+	currentPrice, err := cryptoAPI.FetchPrice(coinID)
+	if err == nil {
+		fmt.Printf("\n  Current price of %s: $%.2f\n", coinName, currentPrice)
+		fmt.Printf("  Your threshold    : $%.2f\n", threshold)
+		if alertType == models.AlertTypeBuy && threshold >= currentPrice {
+			fmt.Println("  Note: threshold is at or above current price — alert may trigger immediately on next check.")
+		}
+		if alertType == models.AlertTypeSell && threshold <= currentPrice {
+			fmt.Println("  Note: threshold is at or below current price — alert may trigger immediately on next check.")
+		}
+	}
+
+	if err := alert.CreateAlert(userEmail, coinID, coinName, alertType, threshold, cryptoAPI); err != nil {
+		fmt.Printf("Error creating alert: %v\n", err)
+		return
+	}
+
+	fmt.Printf("\nAlert set! You will receive an email at %s when %s %s $%.2f.\n",
+		userEmail, coinName,
+		map[models.AlertType]string{
+			models.AlertTypeBuy:  "drops to or below",
+			models.AlertTypeSell: "rises to or above",
+		}[alertType],
+		threshold,
+	)
+}
+
+func deleteAlert(userEmail string, reader *bufio.Reader) {
+	alerts, err := alert.GetAlerts(userEmail)
+	if err != nil {
+		fmt.Printf("Error fetching alerts: %v\n", err)
+		return
+	}
+
+	if len(alerts) == 0 {
+		fmt.Println("You have no active alerts to delete.")
+		return
+	}
+
+	fmt.Println("\n========== YOUR ALERTS ==========")
+	for i, a := range alerts {
+		fmt.Printf("  %d. %s (%s) — %s at $%.2f\n",
+			i+1,
+			a.CoinName,
+			a.CoinID,
+			strings.ToUpper(string(a.AlertType)),
+			a.ThresholdPrice,
+		)
+	}
+
+	fmt.Print("\nEnter alert number to delete (0 to cancel): ")
+	numStr, _ := reader.ReadString('\n')
+	num, err := strconv.Atoi(strings.TrimSpace(numStr))
+	if err != nil || num < 0 || num > len(alerts) {
+		fmt.Println("Invalid selection.")
+		return
+	}
+	if num == 0 {
+		fmt.Println("Cancelled.")
+		return
+	}
+
+	selected := alerts[num-1]
+
+	fmt.Printf("\nDelete %s alert for %s at $%.2f? (y/n): ",
+		strings.ToUpper(string(selected.AlertType)),
+		selected.CoinName,
+		selected.ThresholdPrice,
+	)
+	confirm, _ := reader.ReadString('\n')
+	if strings.TrimSpace(strings.ToLower(confirm)) != "y" {
+		fmt.Println("Cancelled.")
+		return
+	}
+
+	if err := alert.DeleteAlert(userEmail, selected.ID); err != nil {
+		fmt.Printf("Error deleting alert: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Alert for %s deleted successfully.\n", selected.CoinName)
 }
