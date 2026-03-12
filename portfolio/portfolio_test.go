@@ -4,6 +4,7 @@ import (
 	customerrors "crypto-portfolio-tracker/errors"
 	"crypto-portfolio-tracker/models"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 )
@@ -39,6 +40,21 @@ func (m *mockAPI) FetchMultiplePrices(coinIDs ...string) (map[string]float64, er
 
 func (m *mockAPI) GetSupportedCoins() (map[string]string, error) {
 	return map[string]string{"bitcoin": "Bitcoin", "ethereum": "Ethereum"}, nil
+}
+
+type slowMockAPI struct {
+	mockAPI
+	delay time.Duration
+}
+
+func (s *slowMockAPI) FetchPrice(coinID string) (float64, error) {
+	time.Sleep(s.delay)
+	return s.mockAPI.FetchPrice(coinID)
+}
+
+func (s *slowMockAPI) FetchMultiplePrices(coinIDs ...string) (map[string]float64, error) {
+	time.Sleep(s.delay)
+	return s.mockAPI.FetchMultiplePrices(coinIDs...)
 }
 
 func makePortfolio(holdings ...models.Holding) *models.Portfolio {
@@ -120,6 +136,7 @@ func TestCalculateTotalValue_APIError(t *testing.T) {
 func TestCalculateTotalValue_MissingPrice(t *testing.T) {
 	p := makePortfolio(holding("solana", "Solana", 5, 100))
 	api := &mockAPI{prices: map[string]float64{"bitcoin": 60000}}
+
 	_, err := CalculateTotalValue(p, api)
 	if err == nil {
 		t.Fatal("expected error for missing price, got nil")
@@ -329,5 +346,295 @@ func TestPortfolioError_ErrorString_NoCoin(t *testing.T) {
 	want := "portfolio fetch failed: db down"
 	if got != want {
 		t.Errorf("error string:\n  got:  %q\n  want: %q", got, want)
+	}
+}
+
+func TestPipeline_StreamHoldings(t *testing.T) {
+	holdings := []models.Holding{
+		holding("bitcoin", "Bitcoin", 1, 30000),
+		holding("ethereum", "Ethereum", 2, 2000),
+		holding("solana", "Solana", 5, 100),
+	}
+
+	jobsCh := make(chan holdingJob, len(holdings))
+	done := make(chan struct{})
+
+	go streamHoldings(holdings, jobsCh, done)
+
+	var received []string
+	for job := range jobsCh {
+		received = append(received, job.holding.CoinID)
+	}
+
+	if len(received) != len(holdings) {
+		t.Errorf("got %d jobs, want %d", len(received), len(holdings))
+	}
+	for i, id := range []string{"bitcoin", "ethereum", "solana"} {
+		if received[i] != id {
+			t.Errorf("job[%d]: got %q, want %q", i, received[i], id)
+		}
+	}
+}
+
+func TestPipeline_StreamHoldings_Done(t *testing.T) {
+	holdings := make([]models.Holding, 100)
+	for i := range holdings {
+		holdings[i] = holding("bitcoin", "Bitcoin", 1, 30000)
+	}
+
+	jobsCh := make(chan holdingJob, 1)
+	done := make(chan struct{})
+
+	go streamHoldings(holdings, jobsCh, done)
+
+	<-jobsCh
+	close(done)
+
+	count := 1
+	for range jobsCh {
+		count++
+	}
+	if count >= 100 {
+		t.Error("done channel did not cancel streamHoldings early")
+	}
+}
+
+func TestPipeline_PriceWorker(t *testing.T) {
+	prices := map[string]float64{
+		"bitcoin":  60000,
+		"ethereum": 3000,
+	}
+	api := &mockAPI{prices: prices}
+
+	jobsCh := make(chan holdingJob, 2)
+	resultCh := make(chan priceResult, 2)
+	done := make(chan struct{})
+
+	jobsCh <- holdingJob{holding: holding("bitcoin", "Bitcoin", 1, 30000)}
+	jobsCh <- holdingJob{holding: holding("ethereum", "Ethereum", 2, 2000)}
+	close(jobsCh)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go priceWorker(api, prices, jobsCh, resultCh, done, &wg)
+	wg.Wait()
+	close(resultCh)
+
+	results := make(map[string]priceResult)
+	for r := range resultCh {
+		results[r.coinID] = r
+	}
+
+	if r, ok := results["bitcoin"]; !ok || r.price != 60000 {
+		t.Errorf("bitcoin: got price %.2f, want 60000", results["bitcoin"].price)
+	}
+	if r, ok := results["ethereum"]; !ok || r.price != 3000 {
+		t.Errorf("ethereum: got price %.2f, want 3000", results["ethereum"].price)
+	}
+}
+
+func TestPipeline_PriceWorker_MissingPrice(t *testing.T) {
+	prices := map[string]float64{"bitcoin": 60000}
+	api := &mockAPI{prices: prices}
+
+	jobsCh := make(chan holdingJob, 1)
+	resultCh := make(chan priceResult, 1)
+	done := make(chan struct{})
+
+	jobsCh <- holdingJob{holding: holding("solana", "Solana", 5, 100)}
+	close(jobsCh)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go priceWorker(api, prices, jobsCh, resultCh, done, &wg)
+	wg.Wait()
+	close(resultCh)
+
+	r := <-resultCh
+	if r.err == nil {
+		t.Fatal("expected error for missing price, got nil")
+	}
+	if !errors.Is(r.err, customerrors.ErrPriceNotAvailable) {
+		t.Errorf("expected ErrPriceNotAvailable, got: %v", r.err)
+	}
+}
+
+func TestPipeline_RunPricePipeline_CorrectResults(t *testing.T) {
+	holdings := []models.Holding{
+		holding("bitcoin", "Bitcoin", 1, 30000),
+		holding("ethereum", "Ethereum", 5, 2000),
+		holding("solana", "Solana", 10, 50),
+	}
+	prices := map[string]float64{
+		"bitcoin":  60000,
+		"ethereum": 3000,
+		"solana":   100,
+	}
+	api := &mockAPI{prices: prices}
+
+	resultCh, cancel := runPricePipeline(holdings, prices, api, 3)
+	defer cancel()
+
+	results := make(map[string]priceResult)
+	for r := range resultCh {
+		if r.err != nil {
+			t.Errorf("unexpected error for %s: %v", r.coinID, r.err)
+		}
+		results[r.coinID] = r
+	}
+
+	if len(results) != 3 {
+		t.Errorf("got %d results, want 3", len(results))
+	}
+	if results["bitcoin"].price != 60000 {
+		t.Errorf("bitcoin price: got %.2f, want 60000", results["bitcoin"].price)
+	}
+	if results["ethereum"].price != 3000 {
+		t.Errorf("ethereum price: got %.2f, want 3000", results["ethereum"].price)
+	}
+	if results["solana"].price != 100 {
+		t.Errorf("solana price: got %.2f, want 100", results["solana"].price)
+	}
+}
+
+func TestPipeline_CancelStopsPipeline(t *testing.T) {
+	holdings := make([]models.Holding, 50)
+	for i := range holdings {
+		holdings[i] = holding("bitcoin", "Bitcoin", 1, 30000)
+	}
+	prices := map[string]float64{"bitcoin": 60000}
+	api := &mockAPI{prices: prices}
+
+	resultCh, cancel := runPricePipeline(holdings, prices, api, 2)
+
+	cancel()
+
+	for range resultCh {
+	}
+}
+
+func TestCalculateTotalValue_Concurrent(t *testing.T) {
+	p := makePortfolio(
+		holding("bitcoin", "Bitcoin", 1, 30000),
+		holding("ethereum", "Ethereum", 5, 2000),
+		holding("solana", "Solana", 20, 50),
+	)
+	api := &slowMockAPI{
+		mockAPI: mockAPI{prices: map[string]float64{
+			"bitcoin":  60000,
+			"ethereum": 3000,
+			"solana":   100,
+		}},
+		delay: 5 * time.Millisecond,
+	}
+
+	const want = 77000.0
+	const goroutines = 10
+
+	errs := make(chan error, goroutines)
+	totals := make(chan float64, goroutines)
+
+	var wg sync.WaitGroup
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			total, err := CalculateTotalValue(p, api)
+			if err != nil {
+				errs <- err
+				return
+			}
+			totals <- total
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	close(totals)
+
+	for err := range errs {
+		t.Errorf("unexpected error: %v", err)
+	}
+	for total := range totals {
+		if total != want {
+			t.Errorf("total: got %.2f, want %.2f", total, want)
+		}
+	}
+}
+
+func TestCalculateProfitLoss_Concurrent(t *testing.T) {
+	p := makePortfolio(
+		holding("bitcoin", "Bitcoin", 2, 30000),
+		holding("ethereum", "Ethereum", 10, 1500),
+	)
+	api := &slowMockAPI{
+		mockAPI: mockAPI{prices: map[string]float64{
+			"bitcoin":  50000,
+			"ethereum": 2000,
+		}},
+		delay: 5 * time.Millisecond,
+	}
+
+	const goroutines = 10
+
+	type plResult struct {
+		pl  map[string]float64
+		err error
+	}
+	ch := make(chan plResult, goroutines)
+
+	var wg sync.WaitGroup
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			pl, err := CalculateProfitLoss(p, api)
+			ch <- plResult{pl, err}
+		}()
+	}
+	wg.Wait()
+	close(ch)
+
+	for r := range ch {
+		if r.err != nil {
+			t.Errorf("unexpected error: %v", r.err)
+			continue
+		}
+		if r.pl["bitcoin"] != 40000 {
+			t.Errorf("bitcoin P/L: got %.2f, want 40000", r.pl["bitcoin"])
+		}
+		if r.pl["ethereum"] != 5000 {
+			t.Errorf("ethereum P/L: got %.2f, want 5000", r.pl["ethereum"])
+		}
+	}
+}
+
+func TestCalculateTotalValue_ConcurrentWithError(t *testing.T) {
+	p := makePortfolio(holding("bitcoin", "Bitcoin", 1, 30000))
+	api := &slowMockAPI{
+		mockAPI: mockAPI{err: customerrors.ErrRateLimitExceeded},
+		delay:   2 * time.Millisecond,
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 5)
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := CalculateTotalValue(p, api)
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err == nil {
+			t.Error("expected error, got nil")
+			continue
+		}
+		if !errors.Is(err, customerrors.ErrRateLimitExceeded) {
+			t.Errorf("expected ErrRateLimitExceeded, got: %v", err)
+		}
 	}
 }

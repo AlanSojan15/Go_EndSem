@@ -230,12 +230,21 @@ func addMultipleHoldings(userEmail string, reader *bufio.Reader) {
 			continue
 		}
 
+		fmt.Print("Did you pay total or per coin? (t/p): ")
+		priceType, _ := reader.ReadString('\n')
+		priceType = strings.TrimSpace(strings.ToLower(priceType))
+
 		fmt.Print("Buy Price: ")
 		priceStr, _ := reader.ReadString('\n')
 		buyPrice, err := strconv.ParseFloat(strings.TrimSpace(priceStr), 64)
 		if err != nil || buyPrice <= 0 {
 			fmt.Printf("Holding %d skipped: buy price must be a number greater than 0.\n", i+1)
 			continue
+		}
+
+		if priceType == "t" {
+			buyPrice = buyPrice / quantity
+			fmt.Printf("Per-coin price calculated: $%.2f\n", buyPrice)
 		}
 
 		holdings = append(holdings, models.Holding{
@@ -384,17 +393,26 @@ func addSingleHolding(userEmail string, reader *bufio.Reader) {
 	fmt.Print("Enter Quantity: ")
 	quantityStr, _ := reader.ReadString('\n')
 	quantity, err := strconv.ParseFloat(strings.TrimSpace(quantityStr), 64)
-	if err != nil {
+	if err != nil || quantity <= 0 {
 		fmt.Println("Invalid quantity")
 		return
 	}
 
+	fmt.Print("Did you pay total or per coin? (t/p): ")
+	priceType, _ := reader.ReadString('\n')
+	priceType = strings.TrimSpace(strings.ToLower(priceType))
+
 	fmt.Print("Enter Buy Price: ")
 	priceStr, _ := reader.ReadString('\n')
 	buyPrice, err := strconv.ParseFloat(strings.TrimSpace(priceStr), 64)
-	if err != nil {
+	if err != nil || buyPrice <= 0 {
 		fmt.Println("Invalid price")
 		return
+	}
+
+	if priceType == "t" {
+		buyPrice = buyPrice / quantity
+		fmt.Printf("Per-coin price calculated: $%.2f\n", buyPrice)
 	}
 
 	holding := models.Holding{
