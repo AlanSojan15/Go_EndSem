@@ -1,5 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { addHolding, exportPortfolio, importPortfolio, getPortfolio } from '../api'
+import { addHolding, exportPortfolio, importPortfolio, getPortfolio, getFearGreedIndex, getExchangeRates } from '../api'
+
+// ──────────────────────────────────────────────────────────────────
+// ENHANCED FEATURE 1: Portfolio Allocation Pie Chart
+// Imported from recharts library (npm install recharts)
+// Renders a pie chart showing each coin's % share of total portfolio
+// ──────────────────────────────────────────────────────────────────
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+
+// Colour palette for pie chart slices
+const PIE_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#f97316']
+
+// ──────────────────────────────────────────────────────────────────
+// ENHANCED FEATURE 3: Multi-Currency Support
+// Currency symbols and labels used in the dropdown switcher
+// ──────────────────────────────────────────────────────────────────
+const CURRENCIES = [
+  { code: 'USD', symbol: '$', label: 'USD ($)' },
+  { code: 'INR', symbol: '₹', label: 'INR (₹)' },
+  { code: 'EUR', symbol: '€', label: 'EUR (€)' },
+]
 
 function friendlyError(msg) {
   if (!msg) return 'Something went wrong.'
@@ -32,10 +52,24 @@ export default function Portfolio({ token }) {
   const [rows, setRows] = useState([{ ...emptyRow }])
   const [addingMulti, setAddingMulti] = useState(false)
 
-  // Import
+  // Import / Export
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState(false)
   const fileRef = useRef(null)
+
+  // ──────────────────────────────────────────────────────────────────
+  // ENHANCED FEATURE 2: Fear & Greed Index — state
+  // Stores the fetched index data: { value, value_classification }
+  // ──────────────────────────────────────────────────────────────────
+  const [fearGreed, setFearGreed] = useState(null)
+
+  // ──────────────────────────────────────────────────────────────────
+  // ENHANCED FEATURE 3: Multi-Currency Support — state
+  // `currency` = selected currency code (USD/INR/EUR)
+  // `rates`    = live exchange rates relative to USD
+  // ──────────────────────────────────────────────────────────────────
+  const [currency, setCurrency] = useState('USD')
+  const [rates, setRates] = useState({ USD: 1, INR: 83.5, EUR: 0.92 })
 
   const hasToken = useMemo(() => Boolean(token), [token])
 
@@ -55,7 +89,57 @@ export default function Portfolio({ token }) {
   useEffect(() => {
     if (!hasToken) return
     fetchPortfolio()
+
+    // ──────────────────────────────────────────────────────────────
+    // ENHANCED FEATURE 2: Fetch Fear & Greed Index on page load
+    // Called once when the portfolio page is opened
+    // ──────────────────────────────────────────────────────────────
+    getFearGreedIndex()
+      .then(setFearGreed)
+      .catch(() => {}) // silently fail — non-critical widget
+
+    // ──────────────────────────────────────────────────────────────
+    // ENHANCED FEATURE 3: Fetch live exchange rates on page load
+    // Falls back to hardcoded rates if the API is unavailable
+    // ──────────────────────────────────────────────────────────────
+    getExchangeRates()
+      .then(r => setRates(prev => ({ ...prev, ...r })))
+      .catch(() => {}) // silently fail — fallback rates already set
   }, [token, hasToken])
+
+  // ──────────────────────────────────────────────────────────────────
+  // ENHANCED FEATURE 3: Currency conversion helper
+  // Multiplies a USD value by the selected currency's exchange rate
+  // ──────────────────────────────────────────────────────────────────
+  const selectedCurrency = CURRENCIES.find(c => c.code === currency)
+  const sym = selectedCurrency.symbol
+  const rate = rates[currency] ?? 1
+  const convert = (usdVal) => (usdVal * rate).toFixed(2)
+
+  // ──────────────────────────────────────────────────────────────────
+  // ENHANCED FEATURE 2: Fear & Greed — determine badge colour
+  // Green = Greed (safe/bullish), Red = Fear (bearish/panic)
+  // ──────────────────────────────────────────────────────────────────
+  function getFngColor(classification) {
+    if (!classification) return '#6366f1'
+    const c = classification.toLowerCase()
+    if (c.includes('extreme greed')) return '#10b981'
+    if (c.includes('greed')) return '#22c55e'
+    if (c.includes('neutral')) return '#f59e0b'
+    if (c.includes('extreme fear')) return '#ef4444'
+    if (c.includes('fear')) return '#f97316'
+    return '#6366f1'
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // ENHANCED FEATURE 1: Pie Chart data
+  // Maps each holding to { name, value } — value = current USD value
+  // Recharts uses this to render slices proportional to portfolio %
+  // ──────────────────────────────────────────────────────────────────
+  const pieData = holdings.map(h => ({
+    name: h.coin_name,
+    value: parseFloat(h.current_value.toFixed(2)),
+  }))
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -141,7 +225,6 @@ export default function Portfolio({ token }) {
     try {
       const text = await file.text()
       const json = JSON.parse(text)
-      // Accept either { holdings: [...] } or an array directly or { user_email, holdings: [...] }
       const rawHoldings = Array.isArray(json)
         ? json
         : json.holdings || []
@@ -163,9 +246,44 @@ export default function Portfolio({ token }) {
 
   return (
     <div>
+      {/* ────────────────────────────────────────────────────────────
+          ENHANCED FEATURE 2: Fear & Greed Index Widget
+          Displayed at the top of the portfolio page.
+          Shows a colored badge with score + market sentiment label.
+      ──────────────────────────────────────────────────────────── */}
+      {fearGreed && (
+        <div className="fng-widget">
+          <span className="fng-label">Market Sentiment</span>
+          <span
+            className="fng-badge"
+            style={{ background: getFngColor(fearGreed.value_classification) }}
+          >
+            {fearGreed.value} — {fearGreed.value_classification}
+          </span>
+          <span className="fng-hint">Crypto Fear &amp; Greed Index</span>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>My Portfolio</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+
+          {/* ──────────────────────────────────────────────────────
+              ENHANCED FEATURE 3: Multi-Currency Dropdown
+              Lets users switch between USD, INR, and EUR.
+              All prices in the table and total update automatically.
+          ────────────────────────────────────────────────────── */}
+          <select
+            className="currency-select"
+            value={currency}
+            onChange={e => setCurrency(e.target.value)}
+            title="Switch display currency"
+          >
+            {CURRENCIES.map(c => (
+              <option key={c.code} value={c.code}>{c.label}</option>
+            ))}
+          </select>
+
           <button
             onClick={handleExport}
             disabled={exporting || holdings.length === 0}
@@ -197,14 +315,16 @@ export default function Portfolio({ token }) {
           <p className="empty-state">No holdings yet — add your first one below.</p>
         ) : (
           <>
+            {/* Holdings Table — prices shown in selected currency */}
             <table>
               <thead>
                 <tr>
                   <th>Coin</th>
                   <th>Qty</th>
-                  <th>Buy Price</th>
-                  <th>Current</th>
-                  <th>Value</th>
+                  {/* ENHANCED FEATURE 3: Column headers show selected currency symbol */}
+                  <th>Buy Price ({currency})</th>
+                  <th>Current ({currency})</th>
+                  <th>Value ({currency})</th>
                   <th>P / L</th>
                   <th>P / L %</th>
                 </tr>
@@ -222,11 +342,12 @@ export default function Portfolio({ token }) {
                         </span>
                       </td>
                       <td>{h.quantity.toFixed(4)}</td>
-                      <td>${h.buy_price.toFixed(2)}</td>
-                      <td>${h.current_price.toFixed(2)}</td>
-                      <td><strong>${h.current_value.toFixed(2)}</strong></td>
+                      {/* ENHANCED FEATURE 3: All prices converted using live exchange rate */}
+                      <td>{sym}{convert(h.buy_price)}</td>
+                      <td>{sym}{convert(h.current_price)}</td>
+                      <td><strong>{sym}{convert(h.current_value)}</strong></td>
                       <td className={plClass}>
-                        {pl >= 0 ? '+' : ''}${pl.toFixed(2)}
+                        {pl >= 0 ? '+' : ''}{sym}{convert(pl)}
                       </td>
                       <td className={plClass}>
                         {h.profit_loss_pct >= 0 ? '+' : ''}
@@ -238,14 +359,51 @@ export default function Portfolio({ token }) {
               </tbody>
             </table>
             <p className="total" style={{ padding: '12px 20px' }}>
-              Total Portfolio Value: <span style={{ color: 'var(--accent)' }}>${total.toFixed(2)}</span>
+              {/* ENHANCED FEATURE 3: Total also shown in selected currency */}
+              Total Portfolio Value: <span style={{ color: 'var(--accent)' }}>{sym}{convert(total)}</span>
             </p>
+
+            {/* ──────────────────────────────────────────────────────
+                ENHANCED FEATURE 1: Portfolio Allocation Pie Chart
+                Rendered below the holdings table using recharts.
+                Each slice = one coin's % share of the portfolio.
+                Hover over slices to see coin name and USD value.
+            ────────────────────────────────────────────────────── */}
+            <div className="pie-section">
+              <h3 className="pie-title">📊 Portfolio Allocation</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={110}
+                    dataKey="value"
+                    labelLine={false}
+                    label={({ name, percent }) =>
+                      `${name} ${(percent * 100).toFixed(1)}%`
+                    }
+                  >
+                    {pieData.map((_, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={PIE_COLORS[index % PIE_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => [`$${value.toFixed(2)}`, 'Value']}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </>
         )}
       </div>
 
       {/* Mode toggle */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, marginTop: 20 }}>
         <button
           className={!multiMode ? '' : 'button-outline'}
           onClick={() => setMultiMode(false)}

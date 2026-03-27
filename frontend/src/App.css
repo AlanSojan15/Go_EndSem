@@ -401,6 +401,81 @@ tr:hover td {
   margin: 60px auto 0;
 }
 
+/* ─── ENHANCED FEATURE 2: Fear & Greed Index Widget ─ */
+/* Displayed at the top of the portfolio page.          */
+/* Shows market sentiment with a colored badge.         */
+.fng-widget {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+
+.fng-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.fng-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.fng-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-left: auto;
+  font-style: italic;
+}
+
+/* ─── ENHANCED FEATURE 3: Currency Selector ──────── */
+/* Dropdown in the portfolio header to switch currency  */
+.currency-select {
+  width: auto;
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+}
+
+.currency-select:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.13);
+}
+
+/* ─── ENHANCED FEATURE 1: Pie Chart Section ─────── */
+/* Rendered below the holdings table using recharts.   */
+/* Shows each coin's % allocation of portfolio value.  */
+.pie-section {
+  padding: 20px 24px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.pie-title {
+  margin: 0 0 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
 /* ─── Responsive ─────────────────────────────────── */
 @media (max-width: 640px) {
   .app-header {

@@ -82,3 +82,28 @@ export async function deleteAlert(token, id) {
 export async function checkAlerts(token) {
   return request('/alerts/check', { method: 'POST', token })
 }
+
+// ──────────────────────────────────────────────────────────────────
+// ENHANCED FEATURE 2: Fear & Greed Index
+// Fetches the current Crypto Fear & Greed Index (0-100) from
+// alternative.me — a free API, no key required.
+// Used in Portfolio.jsx to display market sentiment to the user.
+// ──────────────────────────────────────────────────────────────────
+export async function getFearGreedIndex() {
+  const res = await fetch('https://api.alternative.me/fng/?limit=1')
+  if (!res.ok) throw new Error('Failed to fetch Fear & Greed Index')
+  const json = await res.json()
+  return json.data[0] // { value, value_classification, timestamp }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// ENHANCED FEATURE 3: Multi-Currency Support
+// Fetches live USD exchange rates from exchangerate-api.com (free).
+// Used in Portfolio.jsx to convert all prices to USD / INR / EUR.
+// ──────────────────────────────────────────────────────────────────
+export async function getExchangeRates() {
+  const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD')
+  if (!res.ok) throw new Error('Failed to fetch exchange rates')
+  const json = await res.json()
+  return json.rates // { USD: 1, INR: 83.5, EUR: 0.92, ... }
+}
