@@ -1,6 +1,23 @@
 import { useEffect, useState } from 'react'
 import { checkAlerts, createAlert, deleteAlert, getAlerts } from '../api'
 
+// Inline SVG icons — no external library
+const IconBell = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 5 }}>
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+  </svg>
+)
+
+const IconTrash = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6M14 11v6"/>
+    <path d="M9 6V4h6v2"/>
+  </svg>
+)
+
 function friendlyError(msg) {
   if (!msg) return 'Something went wrong.'
   const lower = msg.toLowerCase()
@@ -100,7 +117,7 @@ export default function Alerts({ token }) {
             className="button-inline"
             style={{ minWidth: 160 }}
           >
-            {checking ? 'Checking…' : '⚡ Check Alerts Now'}
+            {checking ? 'Checking…' : <><IconBell />Check Alerts Now</>}
           </button>
         </div>
 
@@ -126,7 +143,7 @@ export default function Alerts({ token }) {
                   </td>
                   <td>
                     <span className={`badge ${a.alert_type === 'buy' ? 'badge-green' : 'badge-red'}`}>
-                      {a.alert_type === 'buy' ? '▼ BUY' : '▲ SELL'}
+                      {a.alert_type === 'buy' ? '↓ BUY' : '↑ SELL'}
                     </span>
                   </td>
                   <td><strong>${Number(a.threshold_price ?? a.threshold).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></td>
@@ -140,7 +157,7 @@ export default function Alerts({ token }) {
                       className="btn-danger-sm"
                       title="Delete alert"
                     >
-                      {deletingId === a.id ? '…' : '🗑'}
+                      {deletingId === a.id ? '…' : <IconTrash />}
                     </button>
                   </td>
                 </tr>

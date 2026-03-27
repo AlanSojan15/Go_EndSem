@@ -8,8 +8,18 @@ import { addHolding, exportPortfolio, importPortfolio, getPortfolio, getFearGree
 // ──────────────────────────────────────────────────────────────────
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
-// Colour palette for pie chart slices
+// PIE_COLORS palette for pie chart slices
 const PIE_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#f97316']
+
+// SVG chart icon used in the pie chart section title
+const IconChart = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 6 }}>
+    <line x1="18" y1="20" x2="18" y2="10"/>
+    <line x1="12" y1="20" x2="12" y2="4"/>
+    <line x1="6" y1="20" x2="6" y2="14"/>
+    <line x1="2" y1="20" x2="22" y2="20"/>
+  </svg>
+)
 
 // ──────────────────────────────────────────────────────────────────
 // ENHANCED FEATURE 3: Multi-Currency Support
@@ -370,7 +380,7 @@ export default function Portfolio({ token }) {
                 Hover over slices to see coin name and USD value.
             ────────────────────────────────────────────────────── */}
             <div className="pie-section">
-              <h3 className="pie-title">📊 Portfolio Allocation</h3>
+              <h3 className="pie-title"><IconChart />Portfolio Allocation</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
