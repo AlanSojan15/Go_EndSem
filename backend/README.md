@@ -114,11 +114,31 @@ export JWT_SECRET=your-secret-key
 
 ## 🎮 Usage
 
-### Starting the Application
+### Starting the CLI Application
 
 ```bash
 ./crypto-tracker
 ```
+
+### Running the Go API Server (for React frontend)
+
+```bash
+go run main.go api
+```
+
+The API server will listen on port 8080 by default.
+
+### Running the React Frontend
+
+From the project root:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open the URL shown in the terminal (usually http://localhost:5173).
 
 ### Main Menu Options
 

@@ -1,0 +1,431 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* ─── Tokens ─────────────────────────────────────── */
+:root {
+  --bg: #f0f4f8;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-dark: #1d4ed8;
+  --error-bg: #fef2f2;
+  --error-text: #991b1b;
+  --info-bg: #eff6ff;
+  --info-text: #1e40af;
+  --success-bg: #f0fdf4;
+  --success-text: #166534;
+  --shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --transition: 0.18s ease;
+}
+
+/* ─── Base ───────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+p {
+  margin: 0;
+}
+
+/* ─── Header ─────────────────────────────────────── */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 28px;
+  height: 58px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #f1f5f9;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-header .brand {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(90deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.app-header nav a {
+  color: #94a3b8;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: background var(--transition), color var(--transition);
+}
+
+.app-header nav a:hover,
+.app-header nav a.active {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  text-decoration: none;
+}
+
+.link-button {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #94a3b8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition), color var(--transition);
+}
+
+.link-button:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+
+/* ─── Main layout ────────────────────────────────── */
+.app-main {
+  max-width: 980px;
+  margin: 36px auto 100px;
+  padding: 0 20px;
+}
+
+/* ─── Card ───────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  padding: 26px 28px;
+  margin-bottom: 20px;
+  transition: box-shadow var(--transition);
+}
+
+.card:hover {
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.12);
+}
+
+/* ─── Alert banners ──────────────────────────────── */
+.alert {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.alert.error {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border: 1px solid #fca5a5;
+}
+
+.alert.info {
+  background: var(--info-bg);
+  color: var(--info-text);
+  border: 1px solid #93c5fd;
+}
+
+.alert.success {
+  background: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid #86efac;
+}
+
+/* ─── Forms ──────────────────────────────────────── */
+form {
+  display: grid;
+  gap: 10px;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+input,
+select {
+  padding: 10px 13px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fafbfc;
+  color: var(--text);
+  width: 100%;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.13);
+}
+
+input::placeholder {
+  color: #cbd5e1;
+}
+
+/* ─── Buttons ────────────────────────────────────── */
+button {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  color: #fff;
+  padding: 11px 20px;
+  font-size: 0.93rem;
+  font-weight: 600;
+  font-family: inherit;
+  transition: opacity var(--transition), transform var(--transition), box-shadow var(--transition);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.button-outline {
+  background: transparent;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+  box-shadow: none;
+}
+
+.button-outline:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+.button-inline {
+  padding: 7px 15px;
+  font-size: 0.84rem;
+}
+
+/* ─── Danger small button ────────────────────────── */
+.btn-danger-sm {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  box-shadow: none;
+  line-height: 1;
+}
+
+.btn-danger-sm:hover:not(:disabled) {
+  background: #dc2626;
+  color: #fff;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ─── Badges ─────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.badge-green {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-red {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ─── Table ──────────────────────────────────────── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+th {
+  background: #f8fafc;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tr:hover td {
+  background: #f8fafc;
+  transition: background var(--transition);
+}
+
+.profit {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.loss {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+/* ─── Misc ───────────────────────────────────────── */
+.total {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-top: 0;
+  padding-top: 12px;
+  border-top: 2px solid var(--border);
+  color: var(--text);
+}
+
+.meta {
+  margin-top: 14px;
+  font-size: 0.875rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 44px 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+/* ─── Footer ─────────────────────────────────────── */
+.app-footer {
+  text-align: center;
+  padding: 22px 12px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  margin-top: 40px;
+  letter-spacing: 0.02em;
+}
+
+.app-footer strong {
+  color: var(--accent);
+}
+
+/* ─── Auth pages ─────────────────────────────────── */
+.auth-card {
+  max-width: 420px;
+  margin: 60px auto 0;
+}
+
+/* ─── Responsive ─────────────────────────────────── */
+@media (max-width: 640px) {
+  .app-header {
+    padding: 0 16px;
+  }
+
+  .app-main {
+    margin: 20px auto 60px;
+    padding: 0 12px;
+  }
+
+  .card {
+    padding: 18px 16px;
+  }
+
+  table {
+    font-size: 0.8rem;
+  }
+
+  th,
+  td {
+    padding: 8px 10px;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+}

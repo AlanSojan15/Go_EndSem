@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
@@ -15,16 +16,38 @@ import (
 	customerrors "crypto-portfolio-tracker/errors"
 	"crypto-portfolio-tracker/models"
 	"crypto-portfolio-tracker/portfolio"
+	"crypto-portfolio-tracker/server"
 )
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
+	modeFlag := flag.String("mode", "cli", "run mode (cli | api)")
+	port := flag.String("port", "8080", "HTTP port to listen on")
+	flag.Parse()
+
+	mode := strings.ToLower(strings.TrimSpace(*modeFlag))
+	if len(flag.Args()) > 0 {
+		mode = strings.ToLower(strings.TrimSpace(flag.Args()[0]))
+	}
 
 	cryptoAPI, err := api.NewCoinGecko()
 	if err != nil {
 		fmt.Printf("Failed to initialize CoinGecko API: %v\n", err)
 		return
 	}
+
+	if mode == "api" {
+		fmt.Printf("Starting API server on http://localhost:%s\n", *port)
+		if err := server.Start(cryptoAPI, *port); err != nil {
+			fmt.Printf("API server error: %v\n", err)
+		}
+		return
+	}
+
+	runCLI(cryptoAPI)
+}
+
+func runCLI(cryptoAPI api.CryptoApi) {
+	reader := bufio.NewReader(os.Stdin)
 
 	for {
 		fmt.Println("\n1. Signup\n2. Login\n3. Exit")

@@ -104,6 +104,49 @@ func Signup(userEmail, password string, reader *bufio.Reader) bool {
 	return true
 }
 
+// SignupNoOTP creates a user account without sending or requiring an OTP.
+// This is intended for API-driven clients (e.g., React frontend).
+func SignupNoOTP(userEmail, password string) error {
+	database, err := db.ConnectDatabase()
+	if err != nil {
+		return fmt.Errorf("database connection failed: %w", err)
+	}
+
+	collection := database.Collection("users")
+
+	var existing User
+	err = collection.FindOne(
+		context.TODO(),
+		bson.M{"email": userEmail},
+	).Decode(&existing)
+
+	if err == nil {
+		return fmt.Errorf("account already exists")
+	}
+	if err != mongo.ErrNoDocuments {
+		return fmt.Errorf("database error: %w", err)
+	}
+
+	hashedPassword, err := hashPassword(password)
+	if err != nil {
+		return fmt.Errorf("password hashing failed: %w", err)
+	}
+
+	user := User{
+		Email:    userEmail,
+		Password: hashedPassword,
+		Verified: true,
+		OTP:      "",
+	}
+
+	_, err = collection.InsertOne(context.TODO(), user)
+	if err != nil {
+		return fmt.Errorf("signup failed: %w", err)
+	}
+
+	return nil
+}
+
 func Login(email, password string) bool {
 	database, err := db.ConnectDatabase()
 	if err != nil {
